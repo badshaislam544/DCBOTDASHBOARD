@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guardian Login...</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center h-screen">
+<p id="msg" class="text-sm text-gray-300">Logging you in...</p>
+<script>
+(function () {
+  try {
+    const hash = location.hash.replace(/^#/, "");
+    const params = new URLSearchParams(hash);
+    const u = params.get("user");
+    if (!u) {
+      document.getElementById("msg").textContent = "Login failed: no user data.";
+      return;
+    }
+    const user = JSON.parse(atob(u.replace(/-/g, "+").replace(/_/g, "/")));
+    localStorage.setItem("guardian_user", JSON.stringify(user));
+    document.getElementById("msg").textContent = "Welcome, " + (user.username || "user") + "! Redirecting...";
+    setTimeout(function () {
+      location.href = "./index.html";
+    }, 800);
+  } catch (e) {
+    document.getElementById("msg").textContent = "Login error: " + e.message;
+  }
+})();
+</script>
+</body>
+</html>
