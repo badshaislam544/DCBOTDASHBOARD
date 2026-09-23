@@ -28,18 +28,6 @@
             </div>
         </div>
 
-        <!-- Settings: Render URL বসানোর সিস্টেম (re-upload লাগবে না) -->
-        <div class="bg-gray-800 p-4 rounded-lg shadow mb-6">
-            <h2 class="font-semibold mb-2">Backend Settings <span class="text-xs text-gray-400">(Render URL একবার বসালেই মনে রাখবে)</span></h2>
-            <div class="flex gap-2 flex-col md:flex-row">
-                <input id="backend-input" type="text" placeholder="https://discord-guardian-xxxx.onrender.com"
-                    class="flex-1 bg-gray-700 rounded px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-500">
-                <button onclick="saveBackendUrl()" class="bg-red-600 hover:bg-red-500 rounded px-4 py-2 text-sm font-bold">Save</button>
-                <button onclick="clearBackendUrl()" class="bg-gray-700 hover:bg-gray-600 rounded px-4 py-2 text-sm">Reset</button>
-            </div>
-            <p class="text-xs text-gray-400 mt-2">Tip: লিংক শেয়ার করতেও পারেন: <code>your-site.netlify.app?backend=https://your-app.onrender.com</code></p>
-        </div>
-
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div class="bg-gray-800 p-4 rounded-lg shadow">
                 <h2 class="text-xl font-semibold">System Status</h2>
@@ -70,53 +58,39 @@
     </div>
 
 <script>
-/* ============ Backend URL resolve order ============
-   1. ?backend=URL (query param)
-   2. localStorage (Save বাটনে সেভ হয়)
-   3. config.js -> window.GUARDIAN_CONFIG.BACKEND_URL
+/* ============ API base (URL পেজে দেখা যায় না) ============
+   Netlify-তে /api proxy হয়ে যায় (netlify.toml) — সোর্সে কোনো URL নেই।
+   Owner override (লুকানো): ?backend=https://... দিলে মনে রাখবে।
+   config.js BACKEND_URL = লোকাল/ফলব্যাক।
 ====================================================== */
-function getBackendUrl() {
+function getApiBase() {
     const q = new URLSearchParams(location.search).get("backend");
     if (q) {
         localStorage.setItem("guardian_backend", q.trim().replace(/\/$/, ""));
     }
     const saved = localStorage.getItem("guardian_backend");
     if (saved) return saved;
-    const fromConfig = (window.GUARDIAN_CONFIG && window.GUARDIAN_CONFIG.BACKEND_URL || "").trim().replace(/\/$/, "");
-    return fromConfig;
+    const host = location.hostname || "";
+    if (location.protocol.startsWith("http") && host && !/^(localhost|127\.0\.0\.1)$/.test(host)) {
+        return "/api";
+    }
+    return (window.GUARDIAN_CONFIG && window.GUARDIAN_CONFIG.BACKEND_URL || "").trim().replace(/\/$/, "");
 }
-let BACKEND_URL = getBackendUrl();
+let BACKEND_URL = getApiBase();
 
 const firebaseConfig = (window.GUARDIAN_CONFIG && window.GUARDIAN_CONFIG.firebaseConfig) || {};
 if (firebaseConfig.apiKey && firebaseConfig.apiKey.includes("PASTE")) {
     firebaseConfig._missing = true;
 }
 
-function saveBackendUrl() {
-    const v = document.getElementById("backend-input").value.trim().replace(/\/$/, "");
-    if (!v) { alert("Render URL বসান"); return; }
-    localStorage.setItem("guardian_backend", v);
-    BACKEND_URL = v;
-    document.getElementById("backend-input").value = v;
-    checkBackend();
-    fallbackToBackend(true);
-}
-function clearBackendUrl() {
-    localStorage.removeItem("guardian_backend");
-    BACKEND_URL = (window.GUARDIAN_CONFIG.BACKEND_URL || "").trim().replace(/\/$/, "");
-    document.getElementById("backend-input").value = BACKEND_URL;
-    checkBackend();
-}
-
 /* ================= BACKEND STATUS ================= */
 async function checkBackend() {
     const el = document.getElementById("backend-status");
     const botInfo = document.getElementById("bot-info");
-    document.getElementById("backend-input").value = BACKEND_URL || "";
     if (!BACKEND_URL) {
-        el.textContent = "Backend: URL বসান";
+        el.textContent = "Backend: connecting...";
         el.className = "text-xs px-3 py-1 rounded-full bg-yellow-700 text-yellow-100";
-        botInfo.textContent = "Bot: URL অপেক্ষায়";
+        botInfo.textContent = "Bot: connecting...";
         return;
     }
     try {
@@ -125,6 +99,9 @@ async function checkBackend() {
         el.textContent = data.bot_online ? "Backend: Online" : "Backend: API only (Bot off)";
         el.className = "text-xs px-3 py-1 rounded-full " + (data.bot_online ? "bg-green-700 text-green-100" : "bg-yellow-700 text-yellow-100");
         botInfo.textContent = "Bot: " + (data.bot_user || "offline") + " | Guilds: " + (data.guilds ?? 0);
+        if (typeof data.spam_blocked === "number" && typeof data.messages_seen === "number") {
+            botInfo.textContent += " | " + data.messages_seen + " msgs, " + data.spam_blocked + " blocked";
+        }
     } catch (e) {
         el.textContent = "Backend: Offline";
         el.className = "text-xs px-3 py-1 rounded-full bg-red-700 text-red-100";
@@ -182,7 +159,7 @@ async function fallbackToBackend(once) {
     if (!BACKEND_URL) {
         // Firebase-ও নেই, Backend-ও নেই
         if (firebaseConfig._missing) {
-            logList.innerHTML = '<li class="bg-gray-700 p-3 rounded">config.js-এ firebaseConfig + উপরে Backend URL বসান — তাহলে live logs আসবে।</li>';
+            logList.innerHTML = '<li class="bg-gray-700 p-3 rounded">Backend connecting... If this stays, check Firestore rules (security_logs read allow) and backend status above.</li>';
         }
         return;
     }

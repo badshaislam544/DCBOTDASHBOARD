@@ -1,0 +1,14 @@
+# Netlify proxy — পেজে/সোর্সে আসল Backend URL থাকে না,
+# ব্রাউজার শুধু /api/* দেখে, Netlify ভেতরে Render-এ পাঠায়।
+# NOTE: Netlify Site settings > Publish directory = dashboard হতে হবে।
+[[redirects]]
+  from = "/api/*"
+  to = "https://dcbot-w5ky.onrender.com/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/auth/*"
+  to = "https://dcbot-w5ky.onrender.com/auth/:splat"
+  status = 200
+  force = true
